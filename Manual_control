@@ -1,0 +1,404 @@
+//Define constants
+unsigned long frontDistance = 0;
+unsigned long leftDistance = 0;
+unsigned long rightDistance = 0;
+
+int target = 1;
+int targetVariable = 5;
+int targetOvershoot = 1;
+int text = 0;
+
+//Declares the variable for distance to move forward from dead end (cm)
+const int deadEndOut = 10;
+//U-Turn counter
+int uTurns = 0;
+//time the robot spins for while cornering (milliseconds)
+int spinDelay = 150;
+
+//Sets speed for motors
+int leftSpeed = 0;
+int rightSpeed = 0;
+
+//Pins for H Bridge
+const int motorLeft = A0; //pin 1 on H Bridge. Must be analog
+const int motorRight = A1; //pin 9 on H Bridge. Must be analog
+const int left1 = 8; //pin 2 on H Bridge
+const int left2 = 9; //pin 7 on H Bridge
+const int right1 = 10; //pin 10 on H Bridge
+const int right2 = 11; //pin 15 on H Bridge
+
+// Right Ultrasonic sensor pins
+const int rightTrig = 3;
+const int rightEcho = 2; 
+// Left Ultrasonic sensor pins
+const int leftTrig = 5;
+const int leftEcho = 4; 
+// Front Ultrasonic sensor pins
+const int frontTrig = 6;
+const int frontEcho = 7; 
+
+
+void setup() {
+  Serial.begin(9600);
+  
+  //Pinmodes
+  //Pins for the H-bridge
+  pinMode(motorLeft, OUTPUT);
+  pinMode(motorRight, OUTPUT);
+  pinMode(left1, OUTPUT);
+  pinMode(left2, OUTPUT);
+  pinMode(right1, OUTPUT);
+  pinMode(right2, OUTPUT);
+  
+  //Pins for Ultrasonic Sensors
+  pinMode(rightEcho, INPUT);
+  pinMode(rightTrig, OUTPUT);
+  pinMode(leftEcho, INPUT);
+  pinMode(leftTrig, OUTPUT);
+  pinMode(frontEcho, INPUT);
+  pinMode(frontTrig, OUTPUT);
+
+  Serial.println("Use 1 to move forward, 2 to spin left, 3 to spin right and 4 to spin 180");
+}
+
+
+void loop() { 
+  // taking sensor data
+  frontSensor();
+  leftSensor();
+  rightSensor();
+  
+  
+  if (Serial.available() > 0) {
+    text = Serial.read();
+  
+      
+      
+      
+      if (text == 50) {
+        Serial.println("Going Left");
+          turnLeft();
+          text = 0;
+          Serial.println("finished");
+      }
+      
+      if (text == 51) {
+        Serial.println("Going Right");
+          turnRight();
+          text = 0;
+          Serial.println("finished");
+      }
+      
+      if (text == 52) {
+        Serial.println("Doing 180");
+          turn180();
+          text = 0;
+          Serial.println("finished");
+      }
+      
+      if (text == 49) {
+        Serial.println("Going forward");
+          move();
+          Serial.println("finished");
+          text = 0;
+      }
+     
+  
+  }   
+}
+
+//Sets motors to Fullspeed, or full chosen speed
+void fullSpeed() {
+  leftSpeed = 240;
+  rightSpeed = 240;
+  
+  //sets motors to full speed by allowing the pwm to be 255/255
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+  
+  //Sets the direction the motorspins. Change these to get motor to spin correct way.
+  digitalWrite(left1, LOW);
+  digitalWrite(left2, HIGH);
+  digitalWrite(right1, HIGH);
+  digitalWrite(right2, LOW);
+
+}
+
+//Sets motors to Half Speed, or full speed but half the duration in delay
+void halfSpeed() {
+  leftSpeed = 240;
+  rightSpeed = 240;
+  
+  //sets motors to half speed by allowing the pwm to be 255/255
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+  
+  //Sets the direction the motorspins. Change these to get motor to spin correct way.
+  digitalWrite(left1, LOW);
+  digitalWrite(left2, HIGH);
+  digitalWrite(right1, HIGH);
+  digitalWrite(right2, LOW);
+}
+
+//Set Motors to stop
+void noSpeed() {
+  leftSpeed = 0;
+  rightSpeed = 0;
+  
+  //sets motors to zero speed by allowing the pwm to be 0/255
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+  
+  //Sets the direction the motorspins. Change these to get motor to spin correct way.
+  digitalWrite(left1, LOW);
+  digitalWrite(left2, HIGH);
+  digitalWrite(right1, HIGH);
+  digitalWrite(right2, LOW);
+}
+
+//Adjust the robot left while moving forward
+void adjustLeft() {
+  //Lowers the speed of the left wheel to turn the robot left
+  leftSpeed = leftSpeed + 150;
+  //To turn the robot left and to keep the speed up
+  rightSpeed = rightSpeed + 50;
+  //To apply the new motorspeed
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+}
+
+//Adjust the robot right while moving forward
+void adjustRight() {
+  //To turn the robot right and to keep the speed up
+  leftSpeed = leftSpeed + 50;
+  //Lowers the speed of the right wheel to turn the robot right
+  rightSpeed = rightSpeed + 150;
+  //To apply the new motorspeed
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+}
+
+//Get left sensor value
+void leftSensor() {
+  //triggers tge trig pin on the sensor
+  digitalWrite(leftTrig, HIGH);
+  delay(10);
+  digitalWrite(leftTrig, LOW);
+  //recieves signal
+  leftDistance = pulseIn(leftEcho, HIGH);
+  //Sets the distance to a maximum of 200cm
+  if (leftDistance > 11765){
+    leftDistance = 11765;
+  }
+  //math to convert pulse time to cm
+  leftDistance = (340 * leftDistance/2)/10000;
+  delay(10);
+  pulseIn(leftEcho, LOW);
+}
+
+//Get right sensor value
+void rightSensor() {
+  //triggers the trig pin on the sensor
+  digitalWrite(rightTrig, HIGH);
+  delay(10);
+  digitalWrite(rightTrig, LOW);
+  //recieves the signal
+  rightDistance = pulseIn(rightEcho, HIGH);
+  //sets the distance to a maximum of 200 cm
+  if (rightDistance > 11765){
+    rightDistance = 11765;
+  }
+  //Math to convert the sensor pulse time into cm
+  rightDistance = (340 * rightDistance/2)/10000;
+  delay(10);
+  pulseIn(rightEcho, LOW);
+}
+
+//Get front sensor value
+void frontSensor() {
+  //Triggers the trig pin
+  digitalWrite(frontTrig, HIGH);
+  delay(10);
+  digitalWrite(frontTrig, LOW);
+  //recieves the signal
+  frontDistance = pulseIn(frontEcho, HIGH);
+  //Sets the distance to a maximum of 200cm
+  if (frontDistance > 11765){
+    frontDistance = 11765;
+  }
+  //math to change pulse time to cm
+  frontDistance = (340 * frontDistance/2)/10000;
+  delay(10);
+  pulseIn(frontEcho, LOW);
+}
+
+//Turn left while not moving forward
+void turnLeft() {
+  frontSensor();
+  
+  leftSensor();
+  
+  //Sets variable target as the distance the front sensor will want to see before stopping rotation
+  target = leftDistance - targetVariable;
+  targetOvershoot = rightDistance + 8;
+  
+  
+  //spins and checks if it has spun enough
+  while (frontDistance < target /*|| frontDistance > targetOvershoot*/){
+    spinLeft();
+    delay(spinDelay);
+    noSpeed();
+    frontSensor();
+    
+  
+  }
+  //resets uturn counter
+  uTurns = 0;
+  spinLeft();
+  delay(spinDelay);
+  noSpeed();
+}
+
+//Turn right while not moving forward
+void turnRight(){
+  frontSensor();
+  rightSensor();
+  //Sets variable target as the distance the front sensor will want to see before stopping rotation
+  target = rightDistance - targetVariable;
+  targetOvershoot = rightDistance + 8;
+  
+  
+  //spins and checks if it has spun enough
+  while (frontDistance < target /*|| frontDistance > targetOvershoot*/){
+    spinRight();
+    delay(spinDelay);
+    noSpeed();
+    frontSensor();
+    
+  }
+  //resets uturn counter
+  uTurns = 0;
+  spinRight();
+  delay(spinDelay);
+  noSpeed();  
+}
+
+//Turn 180 at a deadend
+void turn180(){
+  /* TURN TILL FRONT >= DEADENDOUT, OR STORE LEFT AND RIGHT VALUES AND SPIN TILL THEY ARE WITHIN 2 CM OF THE STORED ORIGINAL VALUE BEFORE TURNING USE UTURN COUNTER */
+  frontSensor();
+  while (frontDistance < deadEndOut) {
+    spinLeft();
+    delay(spinDelay);
+    noSpeed();
+    frontSensor();
+  }
+  //counts the amount of 180's made incase of dead end alley with escape along the side
+  uTurns = uTurns + 1;
+
+}
+
+
+void spinLeft(){
+  //Sets speed the motors will spin at for spinning
+  leftSpeed = 150;
+  rightSpeed = 150;
+  
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+  
+  //Sets the direction the motorspins. Change these to get motor to spin correct way.
+  digitalWrite(left1, LOW);
+  digitalWrite(left2, HIGH);
+  digitalWrite(right1, LOW);
+  digitalWrite(right2, HIGH);
+}
+
+
+void spinRight(){
+  //Sets speed the motors will spin at for spinning
+  leftSpeed = 150;
+  rightSpeed = 150;
+  
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+  
+  //Sets the direction the motorspins. Change these to get motor to spin correct way.
+  digitalWrite(left1, HIGH);
+  digitalWrite(left2, LOW);
+  digitalWrite(right1, HIGH);
+  digitalWrite(right2, LOW);
+}
+
+//Code to adjust the robot to keep it in the middle of the vent
+void goForward(){
+  leftSpeed = leftSpeed;
+  rightSpeed = rightSpeed;
+  
+  analogWrite(motorLeft, leftSpeed);
+  analogWrite(motorRight, rightSpeed);
+
+  digitalWrite(left1, LOW);
+  digitalWrite(left2, HIGH);
+  digitalWrite(right1, HIGH);
+  digitalWrite(right2, LOW);
+}
+
+void move(){
+  
+    while (frontDistance >= 4){
+        frontSensor();
+        leftSensor();
+        rightSensor();
+        
+
+        if (frontDistance > 12) {    
+        //adjust left and right to not hit walls
+        if (rightDistance > leftDistance) {
+            adjustRight();
+            
+            goForward();
+            delay(200);
+            noSpeed();
+        }
+        
+        else if (rightDistance < leftDistance) {
+            adjustLeft();
+            
+            goForward();
+            delay(200);
+            noSpeed();
+        }
+        if (rightDistance > leftDistance) {
+            adjustRight();
+        
+            goForward();
+            delay(200);
+            noSpeed();
+        }
+        
+        else if (rightDistance < leftDistance) {
+            adjustLeft();
+            
+            goForward();
+            delay(200);
+            noSpeed();
+        } 
+    fullSpeed();
+        
+        delay(600);
+        noSpeed();  
+    }
+    //Robot moves at halfspeed to get closer to the wall in a safer manner
+    else if (frontDistance <= 12){
+        halfSpeed();
+        
+        delay(200);
+        noSpeed();
+    }
+    //Sets the robot to stop when it is close to a wall infront
+    else if (frontDistance < 3){
+        noSpeed();
+    }    
+  }
+}
